@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/web_home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,6 +113,7 @@ class LaptopHarborApp extends StatelessWidget {
       routes: {
         '/': (_) => const SplashScreen(),
         '/home': (_) => const HomeScreen(),
+        '/web': (_) => const WebHomeScreen(),
         // Baad mein yeh add karte jayein:
         // '/login':    (_) => const LoginScreen(),
         // '/signup':   (_) => const SignupScreen(),

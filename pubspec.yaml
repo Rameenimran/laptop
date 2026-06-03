@@ -34,6 +34,12 @@ dependencies:
   # State management
   provider: ^6.1.1
 
+  # Responsive web layout
+  responsive_framework: ^1.4.0
+
+  # URL launcher
+  url_launcher: ^6.2.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
