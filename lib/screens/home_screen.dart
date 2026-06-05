@@ -253,7 +253,7 @@ const List<_Product> _allProducts = [
   ),
   _Product(
     name: 'Lenovo IdeaPad Gaming 3', brand: 'Lenovo', category: 'Gaming',
-    price: 749, oldPrice: 899, rating: 4.3, reviews: 125,
+    price: 749, oldPrice: 899, rating:.3, reviews: 125,
     badge: '💰 Value', badgeColor: Color(0xFF2E7D32),
     image: 'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=600&q=80',
     specs: 'RTX 3050 • 8GB RAM • 512GB SSD • 15.6" 120Hz FHD',
@@ -2248,7 +2248,8 @@ class _ProductDetailPageState extends State<_ProductDetailPage> {
               _Hover(builder: (h) => SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.push(context, _scaleRoute(const _CheckoutPage())),
+                  onPressed: () => Navigator.push(context,
+                      _scaleRoute(_CheckoutPage(buyNowProduct: p, buyNowQty: _qty))),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: h ? _orangeD : _orange, foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -3337,7 +3338,7 @@ class _OrdersPage extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     child: Row(children: [
                       Expanded(child: _Hover(builder: (hb) => OutlinedButton(
-                        onPressed: () => Navigator.push(context, _slideRoute(const _OrderTrackingPage())),
+                        onPressed: () => Navigator.push(context, _slideRoute( _OrderTrackingPage())), 
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 9),
                           side: BorderSide(color: hb ? _navy : Colors.grey.shade300),
@@ -3601,7 +3602,7 @@ class _EditProfilePageState extends State<_EditProfilePage> {
                     color: Color(0xFF999999), letterSpacing: 0.8)),
                 const SizedBox(height: 14),
                 _Hover(builder: (h) => GestureDetector(
-                  onTap: () => Navigator.push(context, _slideRoute(const _ChangePasswordPage())),
+                  onTap: () => Navigator.push(context, _slideRoute( _ChangePasswordPage())),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.all(16),
@@ -4508,10 +4509,14 @@ class _AboutPage extends StatelessWidget {
 
 
 // ════════════════════════════════════════════════════
-// CHECKOUT PAGE — Full Buy Now / Order Flow
+// CHECKOUT / BUY NOW PAGE
 // ════════════════════════════════════════════════════
 class _CheckoutPage extends StatefulWidget {
-  const _CheckoutPage();
+  // buyNowProduct = set when coming from "Buy Now"
+  // null = coming from Cart
+  final _Product? buyNowProduct;
+  final int buyNowQty;
+  const _CheckoutPage({this.buyNowProduct, this.buyNowQty = 1});
   @override
   State<_CheckoutPage> createState() => _CheckoutPageState();
 }
@@ -4521,50 +4526,51 @@ class _CheckoutPageState extends State<_CheckoutPage>
   int _step = 0; // 0=Delivery, 1=Payment, 2=Review
   int _selAddress = 0;
   int _selPayment = 0;
-  bool _placed    = false;
+  bool _placed = false;
+  bool _loading = false;
   late AnimationController _successCtrl;
   late Animation<double>   _successScale;
 
-  final List<Map<String, String>> _addresses = [
-    {'label': '🏠 Home',   'line1': '123 Main Street, Apt 4B', 'line2': 'New York, NY 10001'},
-    {'label': '🏢 Office', 'line1': '456 Business Ave, Floor 3', 'line2': 'Manhattan, NY 10022'},
+  final _addresses = [
+    {'label': '🏠 Home',   'name': 'Guest User', 'line1': '123 Main Street, Apt 4B',   'line2': 'New York, NY 10001', 'phone': '+1 (212) 555-0101'},
+    {'label': '🏢 Office', 'name': 'Guest User', 'line1': '456 Business Ave, Floor 3', 'line2': 'Manhattan, NY 10022', 'phone': '+1 (212) 555-0202'},
+  ];
+  final _payments = [
+    {'type': 'Visa',        'num': '•••• 4242',           'icon': Icons.credit_card,            'color': const Color(0xFF1565C0)},
+    {'type': 'Mastercard',  'num': '•••• 5353',           'icon': Icons.credit_card,            'color': const Color(0xFFD32F2F)},
+    {'type': 'PayPal',      'num': 'guest@laptopharbor',  'icon': Icons.account_balance_wallet, 'color': const Color(0xFF003087)},
+    {'type': 'Cash on Delivery','num': 'Pay at door',     'icon': Icons.local_atm,              'color': const Color(0xFF2E7D32)},
   ];
 
-  final List<Map<String, dynamic>> _payments = [
-    {'type': 'Visa',       'num': '**** 4242', 'icon': Icons.credit_card,     'color': Color(0xFF1565C0)},
-    {'type': 'Mastercard', 'num': '**** 5353', 'icon': Icons.credit_card,     'color': Color(0xFFD32F2F)},
-    {'type': 'PayPal',     'num': 'guest@...',  'icon': Icons.account_balance_wallet, 'color': Color(0xFF003087)},
-    {'type': 'COD',        'num': 'Cash',       'icon': Icons.local_atm,      'color': Color(0xFF2E7D32)},
-  ];
+  // Items being checked out
+  List<Map<String, dynamic>> get _items {
+    if (widget.buyNowProduct != null) {
+      return [{'product': widget.buyNowProduct!, 'qty': widget.buyNowQty}];
+    }
+    return _globalCart.isEmpty ? [{'product': _allProducts[0], 'qty': 1}] : _globalCart;
+  }
 
-  double get _sub   => _globalCart.isEmpty
-      ? 0
-      : _globalCart.fold(0.0, (s, c) => s + (c['product'] as _Product).price * (c['qty'] as int));
+  double get _sub   => _items.fold(0.0, (s, c) => s + (c['product'] as _Product).price * (c['qty'] as int));
   double get _tax   => _sub * 0.08;
   double get _total => _sub + _tax;
 
   @override
   void initState() {
     super.initState();
-    _successCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
-    _successScale = CurvedAnimation(
-        parent: _successCtrl, curve: Curves.elasticOut);
+    _successCtrl  = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _successScale = CurvedAnimation(parent: _successCtrl, curve: Curves.elasticOut);
   }
-
   @override
   void dispose() { _successCtrl.dispose(); super.dispose(); }
 
   void _placeOrder() async {
-    setState(() => _placed = true);
+    setState(() { _placed = true; _loading = false; });
     _successCtrl.forward();
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(seconds: 4));
     if (!mounted) return;
-    _globalCart.clear();
+    if (widget.buyNowProduct == null) _globalCart.clear();
     Navigator.pushAndRemoveUntil(
-      context, _fadeRoute(const HomeScreen()),
-      (route) => false,
-    );
+        context, _fadeRoute(const HomeScreen()), (_) => false);
   }
 
   @override
@@ -4574,7 +4580,9 @@ class _CheckoutPageState extends State<_CheckoutPage>
       backgroundColor: _bg,
       appBar: AppBar(
         backgroundColor: _navy, foregroundColor: Colors.white,
-        title: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          widget.buyNowProduct != null ? '🛒 Buy Now' : '🛒 Checkout',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: _buildStepper(),
@@ -5422,4 +5430,170 @@ class _LoginPageState extends State<_LoginPage> with SingleTickerProviderStateMi
         borderSide: const BorderSide(color: _red)),
     errorStyle: const TextStyle(color: Color(0xFFFF8A80)),
   );
+}
+// ── Missing Pages ─────────────────────────────────
+class _OrderTrackingPage extends StatelessWidget {
+  const _OrderTrackingPage();
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _navy, foregroundColor: Colors.white,
+        title: const Text('Track Order', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.local_shipping_outlined, size: 80, color: _navy),
+        const SizedBox(height: 16),
+        const Text('Order Tracking', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _navy)),
+        const SizedBox(height: 8),
+        Text('Your order is on its way!', style: TextStyle(color: Colors.grey[600])),
+      ])),
+    );
+  }
+}
+
+class _ChangePasswordPage extends StatelessWidget {
+  const _ChangePasswordPage();
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _navy, foregroundColor: Colors.white,
+        title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(children: [
+          const SizedBox(height: 20),
+          TextFormField(
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: 'Current Password',
+              prefixIcon: const Icon(Icons.lock_outline, color: _orange),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: 'New Password',
+              prefixIcon: const Icon(Icons.lock_outline, color: _orange),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            obscureText: true,
+            decoration: InputDecoration(
+              labelText: 'Confirm New Password',
+              prefixIcon: const Icon(Icons.lock_outline, color: _orange),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                _snack(context, 'Password changed successfully! ✅', color: _green);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _navy, foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Update Password', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _AddAddressPage extends StatelessWidget {
+  const _AddAddressPage();
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bg,
+      appBar: AppBar(
+        backgroundColor: _navy, foregroundColor: Colors.white,
+        title: const Text('Add Address', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _snack(context, 'Address saved! ✅', color: _green);
+              Navigator.pop(context);
+            },
+            child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(children: [
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Full Name',
+              prefixIcon: const Icon(Icons.person_outline, color: _orange),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Phone Number',
+              prefixIcon: const Icon(Icons.phone_outlined, color: _orange),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            decoration: InputDecoration(
+              labelText: 'Street Address',
+              prefixIcon: const Icon(Icons.home_outlined, color: _orange),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: TextFormField(
+              decoration: InputDecoration(
+                labelText: 'City',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            )),
+            const SizedBox(width: 12),
+            Expanded(child: TextFormField(
+              decoration: InputDecoration(
+                labelText: 'ZIP Code',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            )),
+          ]),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                _snack(context, 'Address added! ✅', color: _green);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _navy, foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Save Address', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 }
